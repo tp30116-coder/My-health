@@ -13,7 +13,6 @@
             --main-green: #a8e6cf;
             --soft-orange: #ffd3b6;
             --text-gray: #555;
-            --pulse-red: #ffaaa5;
         }
 
         body {
@@ -41,19 +40,20 @@
         }
 
         .input-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 0.9rem; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; font-size: 0.9rem; color: #666; }
         
         input {
             width: 100%;
             padding: 12px;
-            border: 2px solid #eee;
+            border: 2px solid #f0f0f0;
             border-radius: 15px;
             box-sizing: border-box;
             outline: none;
             font-size: 1rem;
+            background-color: #fafafa;
         }
 
-        input:focus { border-color: var(--main-green); }
+        input:focus { border-color: var(--main-green); background-color: #fff; }
 
         button {
             width: 100%;
@@ -66,10 +66,11 @@
             cursor: pointer;
             transition: transform 0.2s;
             font-weight: bold;
+            margin-top: 10px;
         }
 
         button:active { transform: scale(0.95); }
-        .btn-pdf { background-color: var(--soft-orange); margin-top: 10px; color: #555; }
+        .btn-pdf { background-color: var(--soft-orange); color: #555; }
 
         .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
         .tab { 
@@ -80,9 +81,8 @@
         .tab.active { background: var(--main-green); color: white; }
 
         #history-section { display: none; }
-        .record-item { padding: 10px 0; border-bottom: 1px dashed #eee; font-size: 0.9rem; }
-        .record-item:last-child { border-bottom: none; }
-        .tag { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 0.8rem; margin-right: 5px; }
+        .record-item { padding: 12px 0; border-bottom: 1px dashed #ddd; }
+        .tag { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 0.8rem; margin-right: 5px; margin-top: 5px; }
         .tag-sys { background: #ffefef; color: #ff9aa2; }
         .tag-dia { background: #efffef; color: #88d8b0; }
         .tag-pulse { background: #f0f0ff; color: #92a8d1; }
@@ -101,18 +101,22 @@
 
         <div id="record-section" class="card">
             <div class="input-group">
-                <label>收縮壓 (Sys) - 高壓</label>
-                <input type="number" id="sys" placeholder="例如: 120" inputmode="numeric">
+                <label>📅 測量日期與時間</label>
+                <input type="datetime-local" id="record-date">
             </div>
             <div class="input-group">
-                <label>舒張壓 (Dia) - 低壓</label>
-                <input type="number" id="dia" placeholder="例如: 80" inputmode="numeric">
+                <label>收縮壓 (Sys)</label>
+                <input type="number" id="sys" placeholder="120" inputmode="numeric">
             </div>
             <div class="input-group">
-                <label>心率 (Pulse) - 每分鐘跳動</label>
-                <input type="number" id="pulse" placeholder="例如: 75" inputmode="numeric">
+                <label>舒張壓 (Dia)</label>
+                <input type="number" id="dia" placeholder="80" inputmode="numeric">
             </div>
-            <button onclick="saveData()">儲存今日紀錄 ✨</button>
+            <div class="input-group">
+                <label>心率 (Pulse)</label>
+                <input type="number" id="pulse" placeholder="75" inputmode="numeric">
+            </div>
+            <button onclick="saveData()">儲存紀錄 ✨</button>
         </div>
 
         <div id="history-section">
@@ -121,59 +125,72 @@
                 <canvas id="bpChart"></canvas>
                 <div id="list-container" style="margin-top:25px;"></div>
             </div>
-            <button class="btn-pdf" onclick="downloadPDF()">下載歷史紀錄 PDF 📄</button>
-            <button style="background:none; color:#bbb; font-size:0.8rem; margin-top:20px;" onclick="clearAll()">清空所有紀錄</button>
+            <button class="btn-pdf" onclick="downloadPDF()">下載紀錄 PDF 📄</button>
+            <button style="background:none; color:#ccc; font-size:0.8rem; margin-top:20px; cursor:pointer;" onclick="clearAll()">清空所有紀錄</button>
         </div>
     </div>
 
     <script>
         let records = JSON.parse(localStorage.getItem('bpRecords')) || [];
 
+        // 初始化日期選擇器為現在時間
+        function setNow() {
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            document.getElementById('record-date').value = now.toISOString().slice(0, 16);
+        }
+        setNow();
+
         function showPage(page) {
             document.getElementById('record-section').style.display = page === 'record' ? 'block' : 'none';
             document.getElementById('history-section').style.display = page === 'history' ? 'block' : 'none';
-            
             document.getElementById('tab-record').classList.toggle('active', page === 'record');
             document.getElementById('tab-history').classList.toggle('active', page === 'history');
-            
             if(page === 'history') updateChart();
         }
 
         function saveData() {
+            const rawDate = document.getElementById('record-date').value;
             const sys = document.getElementById('sys').value;
             const dia = document.getElementById('dia').value;
             const pulse = document.getElementById('pulse').value;
 
-            if(!sys || !dia || !pulse) {
-                alert('要把血壓和心率都填完喔！🥺');
-                return;
-            }
+            if(!rawDate || !sys || !dia || !pulse) return alert('請填寫完整日期與數值喔！🥺');
 
-            const now = new Date();
+            // 格式化日期顯示
+            const d = new Date(rawDate);
+            const dateStr = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+
             const newRecord = {
-                date: `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${now.getMinutes()}`,
+                timestamp: d.getTime(), // 用於排序
+                date: dateStr,
                 sys: parseInt(sys),
                 dia: parseInt(dia),
                 pulse: parseInt(pulse)
             };
 
             records.push(newRecord);
-            localStorage.setItem('bpRecords', JSON.stringify(records));
+            // 按照時間先後排序
+            records.sort((a, b) => a.timestamp - b.timestamp);
             
-            alert('紀錄成功！喝口水休息一下吧 💧');
+            localStorage.setItem('bpRecords', JSON.stringify(records));
+            alert('紀錄成功！✨');
+            
+            // 重置輸入
             document.getElementById('sys').value = '';
             document.getElementById('dia').value = '';
             document.getElementById('pulse').value = '';
+            setNow();
         }
 
         function updateChart() {
             const ctx = document.getElementById('bpChart').getContext('2d');
-            const displayData = records.slice(-10); // 顯示最近 10 筆
+            const displayData = records.slice(-10); // 顯示最近 10 筆紀錄
             
             const list = document.getElementById('list-container');
             list.innerHTML = displayData.slice().reverse().map(r => `
                 <div class="record-item">
-                    <div style="font-weight:bold; margin-bottom:5px;">📅 ${r.date}</div>
+                    <div style="font-weight:bold; font-size:0.85rem; color:#888;">📅 ${r.date}</div>
                     <span class="tag tag-sys">收縮壓 ${r.sys}</span>
                     <span class="tag tag-dia">舒張壓 ${r.dia}</span>
                     <span class="tag tag-pulse">心率 ${r.pulse}</span>
@@ -186,31 +203,30 @@
                 data: {
                     labels: displayData.map(r => r.date.split(' ')[0]),
                     datasets: [
-                        { label: '收縮壓', data: displayData.map(r => r.sys), borderColor: '#ff9aa2', tension: 0.4, fill: false },
-                        { label: '舒張壓', data: displayData.map(r => r.dia), borderColor: '#a8e6cf', tension: 0.4, fill: false },
-                        { label: '心率', data: displayData.map(r => r.pulse), borderColor: '#92a8d1', borderDash: [5, 5], tension: 0.4, fill: false }
+                        { label: '收縮壓', data: displayData.map(r => r.sys), borderColor: '#ff9aa2', backgroundColor: '#ff9aa2', tension: 0.4 },
+                        { label: '舒張壓', data: displayData.map(r => r.dia), borderColor: '#a8e6cf', backgroundColor: '#a8e6cf', tension: 0.4 },
+                        { label: '心率', data: displayData.map(r => r.pulse), borderColor: '#92a8d1', backgroundColor: '#92a8d1', borderDash: [5, 5], tension: 0.4 }
                     ]
                 },
                 options: {
-                    plugins: { legend: { labels: { usePointStyle: true } } }
+                    responsive: true,
+                    plugins: { legend: { position: 'top', labels: { boxWidth: 12, usePointStyle: true } } }
                 }
             });
         }
 
         function downloadPDF() {
             const element = document.getElementById('pdf-content');
-            const opt = {
-                margin: 1,
+            html2pdf().from(element).set({
+                margin: 0.5,
                 filename: '血壓紀錄.pdf',
-                image: { type: 'jpeg', quality: 0.98 },
                 html2canvas: { scale: 2 },
                 jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-            };
-            html2pdf().set(opt).from(element).save();
+            }).save();
         }
 
         function clearAll() {
-            if(confirm('確定要刪除所有歷史紀錄嗎？')) {
+            if(confirm('確定要清空所有紀錄嗎？(建議先下載 PDF 備份)')) {
                 localStorage.removeItem('bpRecords');
                 records = [];
                 updateChart();
