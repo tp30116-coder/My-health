@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小草血壓紀錄 🌿</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <style>
+        :root {
+            --bg-color: #fdfbf0;
+            --main-green: #a8e6cf;
+            --soft-orange: #ffd3b6;
+            --text-gray: #555;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-gray);
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+        }
+
+        /* 標題與可愛裝飾 */
+        h1 { text-align: center; color: #77af9c; }
+        .icon { font-size: 3rem; text-align: center; margin-bottom: 10px; }
+
+        /* 卡片設計 */
+        .card {
+            background: white;
+            border-radius: 25px;
+            border: 4px solid var(--main-green);
+            padding: 20px;
+            box-shadow: 5px 5px 0px #dcedc1;
+            margin-bottom: 20px;
+        }
+
+        .input-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #eee;
+            border-radius: 15px;
+            box-sizing: border-box;
+            outline: none;
+            font-size: 1rem;
+        }
+
+        input:focus { border-color: var(--main-green); }
+
+        /* 俏皮按鈕 */
+        button {
+            width: 100%;
+            background-color: var(--main-green);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 15px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: transform 0.2s;
+            font-weight: bold;
+        }
+
+        button:active { transform: scale(0.95); }
+        .btn-pdf { background-color: var(--soft-orange); margin-top: 10px; color: #555; }
+
+        /* 切換分頁 */
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab { 
+            flex: 1; text-align: center; padding: 8px; 
+            background: #eee; border-radius: 10px; cursor: pointer;
+        }
+        .tab.active { background: var(--main-green); color: white; }
+
+        #history-section { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="icon">🌿</div>
+        <h1>健康紀錄小草</h1>
+
+        <div class="tabs">
+            <div class="tab active" onclick="showPage('record')">新增紀錄</div>
+            <div class="tab" onclick="showPage('history')">查看歷史</div>
+        </div>
+
+        <div id="record-section" class="card">
+            <div class="input-group">
+                <label>收縮壓 (High)</label>
+                <input type="number" id="sys" placeholder="例如: 120">
+            </div>
+            <div class="input-group">
+                <label>舒張壓 (Low)</label>
+                <input type="number" id="dia" placeholder="例如: 80">
+            </div>
+            <button onclick="saveData()">儲存紀錄 ✨</button>
+        </div>
+
+        <div id="history-section">
+            <div class="card" id="pdf-content">
+                <h3>過去的紀錄 (一週)</h3>
+                <canvas id="bpChart"></canvas>
+                <div id="list-container" style="margin-top:20px; font-size: 0.9rem;"></div>
+            </div>
+            <button class="btn-pdf" onclick="downloadPDF()">下載歷史紀錄 PDF 📄</button>
+        </div>
+    </div>
+
+    <script>
+        let records = JSON.parse(localStorage.getItem('bpRecords')) || [];
+
+        function showPage(page) {
+            document.getElementById('record-section').style.display = page === 'record' ? 'block' : 'none';
+            document.getElementById('history-section').style.display = page === 'history' ? 'block' : 'none';
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            if(page === 'history') updateChart();
+        }
+
+        function saveData() {
+            const sys = document.getElementById('sys').value;
+            const dia = document.getElementById('dia').value;
+            if(!sys || !dia) return alert('請填寫完整喔！');
+
+            const newRecord = {
+                date: new Date().toLocaleDateString(),
+                sys: parseInt(sys),
+                dia: parseInt(dia)
+            };
+            records.push(newRecord);
+            localStorage.setItem('bpRecords', JSON.stringify(records));
+            alert('紀錄成功！你超棒的 🌿');
+            document.getElementById('sys').value = '';
+            document.getElementById('dia').value = '';
+        }
+
+        function updateChart() {
+            const ctx = document.getElementById('bpChart').getContext('2d');
+            const lastSeven = records.slice(-7);
+            
+            // 清除清單內容
+            const list = document.getElementById('list-container');
+            list.innerHTML = lastSeven.map(r => `<div>${r.date}: ${r.sys}/${r.dia} mmHg</div>`).join('<hr style="border:1px dashed #eee">');
+
+            if(window.myChart) window.myChart.destroy();
+            window.myChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: lastSeven.map(r => r.date),
+                    datasets: [
+                        { label: '收縮壓', data: lastSeven.map(r => r.sys), borderColor: '#ff9aa2', tension: 0.4 },
+                        { label: '舒張壓', data: lastSeven.map(r => r.dia), borderColor: '#a8e6cf', tension: 0.4 }
+                    ]
+                }
+            });
+        }
+
+        function downloadPDF() {
+            const element = document.getElementById('pdf-content');
+            html2pdf().from(element).save('我的血壓紀錄.pdf');
+        }
+    </script>
+</body>
+</html>
