@@ -92,7 +92,7 @@
 
     <div class="container">
         <div class="icon">🌿</div>
-        <h1>健康紀錄小草</h1>
+        <h1>健康紀錄</h1>
 
         <div class="tabs">
             <div class="tab active" id="tab-record" onclick="showPage('record')">新增紀錄</div>
@@ -201,7 +201,7 @@
             const element = document.getElementById('pdf-content');
             const opt = {
                 margin: 1,
-                filename: '小草血壓紀錄.pdf',
+                filename: '血壓紀錄.pdf',
                 image: { type: 'jpeg', quality: 0.98 },
                 html2canvas: { scale: 2 },
                 jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
